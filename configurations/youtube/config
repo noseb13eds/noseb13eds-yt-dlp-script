@@ -13,7 +13,7 @@
 --sleep-requests 5
 
 # Number of seconds to sleep before each subtitle download
---sleep-subtitles 35
+--sleep-subtitles 60
 
 # Minimum number of seconds to sleep before each download.
 # The actual number of seconds slept will be randomly chosen between this number and --max-sleep-interval
@@ -106,5 +106,5 @@
 --impersonate "firefox-135"
 
 # Template to use for naming downloaded files
---output "%(uploader,webpage_url_basename)s [%(uploader_url,webpage_url)s]/%(album&{}|)s/%(artist,album_artist,creator,uploader&{} - |)s%(track_number,playlist_index&{:02d} - |)s%(title)s%(id& [{}]|)s.%(ext)s"
+--output "%(uploader,webpage_url_basename)s [%(uploader_url,webpage_url)s]/%(album,playlist&{}|)s/%(artist,album_artist,creator,uploader&{} - |)s%(track_number,playlist_index&{:02d} - |)s%(title)s%(id& [{}]|)s.%(ext)s"
 
