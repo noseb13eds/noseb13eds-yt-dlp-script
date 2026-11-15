@@ -1,0 +1,422 @@
+#!/bin/bash
+
+# Paths to the directories where log files are saved
+declare -a pathsToLogFileDirectories=("logs")
+
+# Paths to the directories where yt-dlp archive, batch, and config files are located
+# Multiple config directories can be specified, yt-dlp will be run for each directory
+declare -a pathsToConfigDirectories=("configurations/youtube")
+
+# paths to directories where backups of config files are save
+declare -a pathsToConfigBackupDirectories=("backups")
+
+# Path to the directory where downloads are saved
+pathToDownloadsDirectory="downloads"
+
+# basenames of config files
+archiveFileBasename="archive"
+batchFileBasename="batch"
+configFileBasename="config"
+
+# Template to use for naming logs (resolved using printf)
+logFileBasename="nys-log.txt"
+
+# The printf template used for timestamps added to log file and config file backup filenames
+timestampTemplate="[%(%Y-%m-%d)T]"
+
+# File retention count for saved copies of configuration files
+configFileBackupRetentionCount=30
+
+# File retention count for log files
+logFileRetentionCount=30
+
+# The yt-dlp release channel that should be targeted when checking for updates
+# Valid release channel options are 'stable', 'nightly', and 'master' ('nightly' is recommeneded)
+# Set to an empty value ("") to disable checking for updates before running yt-dlp
+# (see https://github.com/yt-dlp/yt-dlp#update for more info)
+targetReleaseChannel="nightly"
+
+
+
+# change directory to the directory where the script is located
+# (filepaths given in this file are checked relative to its located)
+cd "$(dirname ${BASH_SOURCE[0]})"
+
+# Save the current directory in $absolutePathToScriptDirectory
+absolutePathToScriptDirectory="$(pwd)"
+
+
+
+# If any of the log file directories has not been created yet, log an error and exit the script
+for pathToLogFilesDirectory in "${pathsToLogFileDirectories[@]}";
+do
+    if [ ! -d "$pathToLogFilesDirectory" ]; then
+        echo "The directory specified by 'pathsToLogFileDirectories=(...$pathToLogFilesDirectory...)' was not found, please ensure '$pathToLogFilesDirectory' exists and re-run script."
+        exit 1
+    fi
+done
+
+# Resolve log file filepaths to absolute paths
+declare -a absolutePathsToLogFileDirectories="("$(readlink -f "${pathsToLogFileDirectories[@]}" | awk '{print "\""$0"\""}')")"
+
+# printf the log file template to the 'logFileBasenameWithTimestamp' variable
+# -1 arg tells printf to default to explicit current date, not shell start time
+if [[ $logFileBasename == *"."* ]]; then
+    printf -v "logFileBasenameWithTimestamp" ""${logFileBasename%.*}" "$timestampTemplate"."${logFileBasename##*.}"" -1
+else
+    printf -v "logFileBasenameWithTimestamp" ""$logFileBasename" "$timestampTemplate"" -1
+fi
+
+# If downloads directory path is not specified or it has not been created yet, log an error and exit the script
+if [ ! -d "$pathToDownloadsDirectory" ]; then
+    echo "error: downloads directory is missing, create it and re-run script." \
+        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+    exit 1
+fi
+
+
+
+# if any config directories are missing, log error and exit script
+configDirectoriesMissing=false
+for pathToConfigDirectory in "${pathsToConfigDirectories[@]}";
+do
+
+    if [ ! -d "$pathToConfigDirectory" ]; then
+        echo "error: config directory '$pathToConfigDirectory' is missing." \
+            2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+        configDirectoriesMissing=true
+    fi
+
+done
+if [ "$configDirectoriesMissing" = true ]; then
+    echo "error: create missing config directories with batch and config files and re-run script." \
+        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+    exit 1
+fi
+
+# If any of the config file backup directories have not been created yet, log an error and exit the script
+configBackupDirectoriesMissing=false
+for pathToConfigBackupDirectory in "${pathsToConfigBackupDirectories[@]}";
+do
+    if [ ! -d "$pathToConfigBackupDirectory" ]; then
+        echo "error: config backup directory '$pathToConfigBackupDirectory' is missing." \
+            2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+        configBackupDirectoriesMissing=true
+    fi
+done
+if [ "$configBackupDirectoriesMissing" = true ]; then
+    echo "error: create config backup directories and re-run script." \
+        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+    exit 1
+fi
+
+# if batch or config files are missing from config directories, log error and exit script
+batchOrConfigFilesMissing=false
+for pathToConfigDirectory in "${pathsToConfigDirectories[@]}";
+do
+
+    if [ ! -f "$pathToConfigDirectory/$batchFileBasename" ]; then
+        echo "error: batch file is missing from config directory '$pathToConfigDirectory'" \
+            2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+        batchOrConfigFilesMissing=true
+    fi
+
+    if [ ! -f "$pathToConfigDirectory/$configFileBasename" ]; then
+        echo "error: config file is missing from config directory '$pathToConfigDirectory'" \
+            2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+        batchOrConfigFilesMissing=true
+    fi
+
+done
+if [ "$batchOrConfigFilesMissing" = true ]; then
+    echo "error: create missing config files and re-run script." \
+        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+    exit 1
+fi
+
+# If archive files are missing from config directories, create them and continue
+for pathToConfigDirectory in "${pathsToConfigDirectories[@]}";
+do
+
+    if [ ! -f "$pathToConfigDirectory/$archiveFileBasename" ]; then
+        echo "warning: archive file is missing from config directory '$pathToConfigDirectory', creating it..." \
+            2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+        touch "$pathToConfigDirectory/$archiveFileBasename" \
+            2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+    fi
+
+done
+
+
+
+# update yt-dlp if a newer version is available (requires running the script with root/admin permissions)
+# to disable automatically updating yt-dlp, set the 'targetReleaseChannel' variable to an empty value ("")
+if [ "${targetReleaseChannel,,}" = "stable" ] || [ "${targetReleaseChannel,,}" = "nightly" ] || [ "${targetReleaseChannel,,}" = "master" ]; then
+    yt-dlp \
+        --update-to "${targetReleaseChannel,,}" \
+        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+elif [ -n "$targetReleaseChannel" ]; then
+    echo "The release channel specified by 'targetReleaseChannel=$targetReleaseChannel' does not exist, please ensure 'targetReleaseChannel' is being set to a valid value." \
+        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+    exit 1
+fi
+
+
+
+# Iterate through configuration files
+for pathToConfigDirectory in "${pathsToConfigDirectories[@]}";
+do
+
+    # initialize paths to config files
+    pathToArchiveFile="$pathToConfigDirectory/$archiveFileBasename"
+    pathToBatchFile="$pathToConfigDirectory/$batchFileBasename"
+    pathToConfigFile="$pathToConfigDirectory/$configFileBasename"
+
+    # Get current date/time as # of seconds since epoch
+    timeYtDlpStarted="$(date "+%s")"
+
+    # yt-dlp command
+    yt-dlp \
+        --paths "$absolutePathToDownloadsDirectory" \
+        --download-archive "$pathToArchiveFile" \
+        --batch-file "$pathToBatchFile" \
+        --config-locations "$pathToConfigFile" \
+        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+
+    # change directory to downloads directory
+    cd "$pathToDownloadsDirectory"
+
+    # Generate a new .md5 hash file for any file that was modified after the yt-dlp command was executed
+    find . \
+        -type f \
+        -not -name "*.md5" \
+        -newermt "@$timeYtDlpStarted" \
+        -exec sh -c "md5sum \"\$1\" | tee \"\$1.md5\"" -- "{}" \; \
+        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+
+    # Change directory to script directory
+    cd "$absolutePathToScriptDirectory"
+
+    # back up any changed configuration files
+    for pathToConfigBackupDirectory in "${pathsToConfigBackupDirectories[@]}";
+    do
+
+        # Resolve backup file directories
+        pathToArchiveFileBackupDirectory="$pathToConfigBackupDirectory/$archiveFileBasename"
+        pathToBatchFileBackupDirectory="$pathToConfigBackupDirectory/$batchFileBasename"
+        pathToConfigFileBackupDirectory="$pathToConfigBackupDirectory/$configFileBasename"
+
+        # If the batch file backup directory doesn't exist, create it and continue
+        if [ ! -d "$pathToBatchFileBackupDirectory" ]; then
+            mkdir "$pathToBatchFileBackupDirectory"
+        fi
+
+        # If the archive file backup directory doesn't exist, create it and continue
+        if [ ! -d "$pathToArchiveFileBackupDirectory" ]; then
+            mkdir "$pathToArchiveFileBackupDirectory"
+        fi
+
+        # If the yt-dlp config file backup directory doesn't exist, create it and continue
+        if [ ! -d "$pathToConfigFileBackupDirectory" ]; then
+            mkdir "$pathToConfigFileBackupDirectory"
+        fi
+
+
+
+        # Get the most recently changed archive file backup
+        mostRecentArchiveFileBackup="$(find "$pathToArchiveFileBackupDirectory" \
+            -maxdepth 1 \
+            -type f \
+            -not -name ".gitignore" \
+            -printf "%T@ %p\n" \
+            | sort -n \
+            | cut -d' ' -f 2- \
+            | tail -n 1)"
+
+        # If there's no backup, or the current archive file is not the same as the last saved archive file backup, save a new copy
+        if [ -z "$mostRecentArchiveFileBackup" ] || ! cmp -s "$mostRecentArchiveFileBackup" "$pathToArchiveFile"; then
+
+            # If filename contains file extension, add timestamp before extension
+            if [[ "$archiveFileBasename" == *"."* ]]; then
+                printf -v "archiveFileBasenameWithTimestamp" ""${archiveFileBasename%.*}" "$timestampTemplate"."${archiveFileBasename##*.}"" -1
+            else
+                printf -v "archiveFileBasenameWithTimestamp" ""$archiveFileBasename" "$timestampTemplate"" -1
+            fi
+
+            # Copy current archive file to new timestamped archive backup file
+            cp -v "$pathToArchiveFile" "$pathToArchiveFileBackupDirectory/$archiveFileBasenameWithTimestamp" \
+                2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+
+        fi
+
+        # Count number of archive backup files
+        archiveFileBackupCount="$(find "$pathToArchiveFileBackupDirectory" -maxdepth 1 -type f -not -name ".gitignore" | wc -l)"
+
+        # If the new number of backup files is greater than the config file retention count,
+        # Delete the oldest (modified longest ago) file
+        while [ "$archiveFileBackupCount" -gt "$configFileBackupRetentionCount" ]; do
+
+            # Get oldest archive backup file
+            oldestArchiveFileBackup="$(find "$pathToArchiveFileBackupDirectory" \
+                -maxdepth 1 \
+                -type f \
+                -not -name ".gitignore" \
+                -printf "%T@ %p\n" \
+                | sort -n \
+                | cut -d' ' -f 2- \
+                | head -n 1)"
+
+            # Remove oldest archive backup file
+            rm -v -f "$oldestArchiveFileBackup" \
+                2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+
+            # Decrement archive backup file count
+            ((archiveFileBackupCount--))
+
+        done
+
+
+
+        # Get the most recently created batch file backup
+        mostRecentBatchFileBackup="$(find "$pathToBatchFileBackupDirectory" \
+            -maxdepth 1 \
+            -type f \
+            -not -name ".gitignore" \
+            -printf "%T@ %p\n" \
+            | sort -n \
+            | cut -d' ' -f 2- \
+            | tail -n 1)"
+
+        # If there's no backup, or the current batch file is not the same as the last saved batch file backup, save a new copy
+        if [ -z "$mostRecentBatchFileBackup" ] || ! cmp -s "$mostRecentBatchFileBackup" "$pathToBatchFile"; then
+
+            # If filename contains file extension, add timestamp before extension
+            if [[ "$batchFileBasename" == *"."* ]]; then
+                printf -v batchFileBasenameWithTimestamp ""${batchFileBasename%.*}" "$timestampTemplate"."${batchFileBasename##*.}"" -1
+            else
+                printf -v batchFileBasenameWithTimestamp ""$batchFileBasename" "$timestampTemplate"" -1
+            fi
+
+            # Copy current batch file to new timestamped batch backup file
+            cp -v "$pathToBatchFile" "$pathToBatchFileBackupDirectory/$batchFileBasenameWithTimestamp" \
+                2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+
+            # Count number of batch backup files
+            batchFileBackupCount="$(find "$pathToBatchFileBackupDirectory" -maxdepth 1 -type f -not -name ".gitignore" | wc -l)"
+
+            # If the new number of backup files is greater than the config file retention count,
+            # Delete the oldest (modified longest ago) file
+            while [ "$batchFileBackupCount" -gt "$configFileBackupRetentionCount" ]; do
+
+                # Get oldest batch backup file
+                oldestBatchFileBackup="$(find "$pathToBatchFileBackupDirectory" \
+                    -maxdepth 1 \
+                    -type f \
+                    -not -name ".gitignore" \
+                    -printf "%T@ %p\n" \
+                    | sort -n \
+                    | cut -d' ' -f 2- \
+                    | head -n 1)"
+
+                # Remove oldest batch backup file
+                rm -v -f "$oldestBatchFileBackup" \
+                    2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+
+                # Decrement batch backup file count
+                ((batchFileBackupCount--))
+
+            done
+
+        fi
+
+
+
+        # Get the most recently changed yt-dlp config file backup
+        mostRecentConfigFileBackup="$(find "$pathToConfigFileBackupDirectory" \
+            -maxdepth 1 \
+            -type f \
+            -not -name ".gitignore" \
+            -printf "%T@ %p\n" \
+            | sort -n \
+            | cut -d' ' -f 2- \
+            | tail -n 1)"
+
+        # If there's no backup, or the current yt-dlp config file is not the same as the last saved yt-dlp config file backup, save a new copy
+        if [ -z "$mostRecentConfigFileBackup" ] || ! cmp -s "$mostRecentConfigFileBackup" "$pathToConfigFile"; then
+
+            # If filename contains file extension, add timestamp before extension
+            if [[ "$configFileBasename" == *"."* ]]; then
+                printf -v ytDlpConfigFileBasenameWithTimestamp ""${configFileBasename%.*}" "$timestampTemplate"."${configFileBasename##*.}"" -1
+            else
+                printf -v ytDlpConfigFileBasenameWithTimestamp ""$configFileBasename" "$timestampTemplate"" -1
+            fi
+
+            # Copy current yt-dlp config file to new timestamped yt-dlp config backup file
+            cp -v "$pathToConfigFile" "$pathToConfigFileBackupDirectory/$ytDlpConfigFileBasenameWithTimestamp" \
+                2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+
+        fi
+
+        # Count number of yt-dlp config backup files
+        configFileBackupCount="$(find "$pathToConfigFileBackupDirectory" -maxdepth 1 -type f -not -name ".gitignore" | wc -l)"
+
+        # If the new number of backup files is greater than the config file retention count,
+        # Delete the oldest (modified longest ago) file
+        while [ "$configFileBackupCount" -gt "$configFileBackupRetentionCount" ]; do
+
+            # Get oldest yt-dlp config backup file
+            oldestConfigFileBackup="$(find "$pathToConfigFileBackupDirectory" \
+                -maxdepth 1 \
+                -type f \
+                -not -name ".gitignore" \
+                -printf "%T@ %p\n" \
+                | sort -n \
+                | cut -d' ' -f 2- \
+                | head -n 1)"
+
+            # Remove oldest yt-dlp config backup file
+            rm -v -f "$oldestConfigFileBackup" \
+                2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+
+            # Decrement yt-dlp config backup file count
+            ((configFileBackupCount--))
+
+        done
+
+    done
+
+done
+
+
+
+# Remove oldest log file if log file count is over log file retention count
+for pathToLogFilesDirectory in "${absolutePathsToLogFileDirectories[@]}";
+do
+
+    # Count number of log files
+    logFileCount="$(find "$pathToLogFilesDirectory" -maxdepth 1 -type f -not -name ".gitignore" | wc -l)"
+
+    # If the new number of log files is greater than the log file retention count,
+    # Delete the oldest (modified longest ago) files until the count is within limit
+    while [ "$logFileCount" -gt "$logFileRetentionCount" ]; do
+
+        # Get oldest log file
+        oldestLogFile="$(find "$pathToLogFilesDirectory" \
+            -maxdepth 1 \
+            -type f \
+            -not -name ".gitignore" \
+            -printf "%T@ %p\n" \
+            | sort -n \
+            | cut -d' ' -f 2- \
+            | head -n 1)"
+
+        # Remove oldest log file
+        rm -v -f "$oldestLogFile" \
+            2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
+
+        # Decrement log file count
+        ((logFileCount--))
+
+    done
+
+done
