@@ -34,7 +34,7 @@ logFileRetentionCount=30
 # Valid release channel options are 'stable', 'nightly', and 'master' ('nightly' is recommeneded)
 # Set to an empty value ("") to disable checking for updates before running yt-dlp
 # (see https://github.com/yt-dlp/yt-dlp#update for more info)
-targetReleaseChannel="nightly"
+targetReleaseChannel=""
 
 
 
