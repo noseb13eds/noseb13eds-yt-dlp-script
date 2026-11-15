@@ -7,9 +7,6 @@ declare -a pathsToLogFileDirectories=("logs")
 # Multiple configurations can be specified, the yt-dlp command will be run for each config file
 declare -a pathsToLvasConfigFiles=("configurations/youtube/lvas-config")
 
-# Template to use for naming downloads
-downloadedContentFilenameTemplate="%(uploader,webpage_url_basename)s [%(uploader_url,webpage_url)s]/%(album&{}|)s/%(artist,creator&{} - |)s%(track_number,playlist_index&{:02d} - |)s%(title)s%(id& [{}]|)s.%(ext)s"
-
 # Template to use for naming logs (resolved using printf)
 logFileBasename="lvas-log.txt"
 
@@ -205,7 +202,7 @@ do
         --batch-file "$absolutePathToBatchFile" \
         --download-archive "$absolutePathToArchiveFile" \
         --config-locations "$absolutePathToYtDlpConfigFile" \
-        -o "$absolutePathToDownloadsDirectory/$downloadedContentFilenameTemplate" \
+        --paths "$absolutePathToDownloadsDirectory" \
         2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
 
     cd "$absolutePathToDownloadsDirectory"
