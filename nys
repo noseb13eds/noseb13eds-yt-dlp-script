@@ -177,7 +177,7 @@ do
 
     # yt-dlp command
     yt-dlp \
-        --paths "$absolutePathToDownloadsDirectory" \
+        --paths "$pathToDownloadsDirectory" \
         --download-archive "$pathToArchiveFile" \
         --batch-file "$pathToBatchFile" \
         --config-locations "$pathToConfigFile" \
