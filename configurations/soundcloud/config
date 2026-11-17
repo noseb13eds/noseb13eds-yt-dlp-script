@@ -104,5 +104,3 @@
 
 # Template to use for naming downloaded files
 --output "%(uploader,webpage_url_basename)s [%(uploader_url,webpage_url)s]/%(album&{}|)s/%(artists.0,album_artists.0,uploader&{} - |)s%(track_number&{:02d} - |)s%(title)s%(id& [{}]|)s.%(ext)s"
-
---no-download
