@@ -1,51 +1,41 @@
 #!/bin/bash
 
-# Paths to the directories where log files are saved
-declare -a pathsToLogFileDirectories=("logs")
+# CONFIG ---------------------------------------------------------------------------------------------------------------
 
-# Paths to the directories where yt-dlp archive, batch, and config files are located
-# Multiple config directories can be specified, yt-dlp will be run for each directory
-declare -a pathsToConfigDirectories=("configurations/youtube")
+# yt-dlp target release channel
+# (https://github.com/yt-dlp/yt-dlp#update)
+targetReleaseChannel=""                                # ('stable'/'nightly'/'master', or '' to disable)
 
-# paths to directories where backups of config files are save
-declare -a pathsToConfigBackupDirectories=("backups")
+# download config options
+declare -a targetConfigurations=("soundcloud")         # yt-dlp runs once for each configuration given
+createDownloadsSubdirectory=true                       # creates subdirectories for each configuration
 
-# Path to the directory where downloads are saved
-pathToDownloadsDirectory="downloads"
+# directory paths
+declare -a pathsToLogFileDirectories=("logs")          # contains log files
+declare -a pathsToConfigBackupDirectories=("backups")  # contains configuration backup files
+pathToConfigurationsDirectory="configurations"         # contains all configuration directories
+pathToDownloadsDirectory="downloads"                   # contains successful downloads, hashes and infodicts
 
-# basenames of config files
-archiveFileBasename="archive"
-batchFileBasename="batch"
-configFileBasename="config"
+# config file basenames
+archiveFileBasename="archive"                          # contains IDs of successful downloads
+batchFileBasename="batch"                              # contains urls to download
+configFileBasename="config"                            # contains yt-dlp configuration options
 
-# Template to use for naming logs (resolved using printf)
-logFileBasename="nys-log.txt"
+# filename templates (resolved using printf)
+logFileBasename="nys-log.txt"                          # template to use for log filenames
+timestampTemplate="[%(%Y-%m-%d)T]"                     # template to use for timestamps appended to filenames
 
-# The printf template used for timestamps added to log file and config file backup filenames
-timestampTemplate="[%(%Y-%m-%d)T]"
+# file retention counts (max # of files saved)
+configFileBackupRetentionCount=30                      # retention count for config backup files
+logFileRetentionCount=30                               # retention count for log files
 
-# File retention count for saved copies of configuration files
-configFileBackupRetentionCount=30
-
-# File retention count for log files
-logFileRetentionCount=30
-
-# The yt-dlp release channel that should be targeted when checking for updates
-# Valid release channel options are 'stable', 'nightly', and 'master' ('nightly' is recommeneded)
-# Set to an empty value ("") to disable checking for updates before running yt-dlp
-# (see https://github.com/yt-dlp/yt-dlp#update for more info)
-targetReleaseChannel=""
+# ----------------------------------------------------------------------------------------------------------------------
 
 
 
-# change directory to the directory where the script is located
-# (filepaths given in this file are checked relative to its located)
+# change present working directory to this script's location and save it
 cd "$(dirname ${BASH_SOURCE[0]})"
-
-# Save the current directory in $absolutePathToScriptDirectory
 absolutePathToScriptDirectory="$(pwd)"
-
-
 
 # If any of the log file directories has not been created yet, log an error and exit the script
 for pathToLogFilesDirectory in "${pathsToLogFileDirectories[@]}";
@@ -74,19 +64,15 @@ if [ ! -d "$pathToDownloadsDirectory" ]; then
     exit 1
 fi
 
-
-
 # if any config directories are missing, log error and exit script
 configDirectoriesMissing=false
-for pathToConfigDirectory in "${pathsToConfigDirectories[@]}";
+for pathToConfigDirectory in "${targetConfigurations[@]/#/$pathToConfigurationsDirectory/}";
 do
-
     if [ ! -d "$pathToConfigDirectory" ]; then
         echo "error: config directory '$pathToConfigDirectory' is missing." \
             2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
         configDirectoriesMissing=true
     fi
-
 done
 if [ "$configDirectoriesMissing" = true ]; then
     echo "error: create missing config directories with batch and config files and re-run script." \
@@ -112,21 +98,18 @@ fi
 
 # if batch or config files are missing from config directories, log error and exit script
 batchOrConfigFilesMissing=false
-for pathToConfigDirectory in "${pathsToConfigDirectories[@]}";
+for pathToConfigDirectory in "${targetConfigurations[@]/#/$pathToConfigurationsDirectory/}";
 do
-
     if [ ! -f "$pathToConfigDirectory/$batchFileBasename" ]; then
         echo "error: batch file is missing from config directory '$pathToConfigDirectory'" \
             2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
         batchOrConfigFilesMissing=true
     fi
-
     if [ ! -f "$pathToConfigDirectory/$configFileBasename" ]; then
         echo "error: config file is missing from config directory '$pathToConfigDirectory'" \
             2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
         batchOrConfigFilesMissing=true
     fi
-
 done
 if [ "$batchOrConfigFilesMissing" = true ]; then
     echo "error: create missing config files and re-run script." \
@@ -135,16 +118,14 @@ if [ "$batchOrConfigFilesMissing" = true ]; then
 fi
 
 # If archive files are missing from config directories, create them and continue
-for pathToConfigDirectory in "${pathsToConfigDirectories[@]}";
+for pathToConfigDirectory in "${targetConfigurations[@]/#/$pathToConfigurationsDirectory/}";
 do
-
     if [ ! -f "$pathToConfigDirectory/$archiveFileBasename" ]; then
         echo "warning: archive file is missing from config directory '$pathToConfigDirectory', creating it..." \
             2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
         touch "$pathToConfigDirectory/$archiveFileBasename" \
             2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
     fi
-
 done
 
 
@@ -164,27 +145,31 @@ fi
 
 
 # Iterate through configuration files
-for pathToConfigDirectory in "${pathsToConfigDirectories[@]}";
+for targetConfiguration in "${targetConfigurations[@]}";
 do
 
-    # initialize paths to config files
-    pathToArchiveFile="$pathToConfigDirectory/$archiveFileBasename"
-    pathToBatchFile="$pathToConfigDirectory/$batchFileBasename"
-    pathToConfigFile="$pathToConfigDirectory/$configFileBasename"
+    # initialize filepaths
+    pathToConfigDirectory="$pathToConfigurationsDirectory/$targetConfiguration"  # target configuration directory
+    pathToArchiveFile="$pathToConfigDirectory/$archiveFileBasename"              # path to archive file
+    pathToBatchFile="$pathToConfigDirectory/$batchFileBasename"                  # path to batch file
+    pathToConfigFile="$pathToConfigDirectory/$configFileBasename"                # path to config file
+    if [ "$createDownloadsSubdirectory" = true ]; then
+        downloadsSubdirectory="$targetConfiguration"                             # downloads subdirectory (if enabled)
+    fi
 
-    # Get current date/time as # of seconds since epoch
+    # yt-dlp execution time as # of seconds since epoch
     timeYtDlpStarted="$(date "+%s")"
 
     # yt-dlp command
     yt-dlp \
-        --paths "$pathToDownloadsDirectory" \
+        --paths "$pathToDownloadsDirectory/$downloadsSubdirectory" \
         --download-archive "$pathToArchiveFile" \
         --batch-file "$pathToBatchFile" \
         --config-locations "$pathToConfigFile" \
         2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
 
     # change directory to downloads directory
-    cd "$pathToDownloadsDirectory"
+    cd "$pathToDownloadsDirectory/$downloadsSubdirectory"
 
     # Generate a new .md5 hash file for any file that was modified after the yt-dlp command was executed
     find . \
@@ -206,22 +191,10 @@ do
         pathToBatchFileBackupDirectory="$pathToConfigBackupDirectory/$batchFileBasename"
         pathToConfigFileBackupDirectory="$pathToConfigBackupDirectory/$configFileBasename"
 
-        # If the batch file backup directory doesn't exist, create it and continue
-        if [ ! -d "$pathToBatchFileBackupDirectory" ]; then
-            mkdir "$pathToBatchFileBackupDirectory"
-        fi
-
-        # If the archive file backup directory doesn't exist, create it and continue
-        if [ ! -d "$pathToArchiveFileBackupDirectory" ]; then
-            mkdir "$pathToArchiveFileBackupDirectory"
-        fi
-
-        # If the yt-dlp config file backup directory doesn't exist, create it and continue
-        if [ ! -d "$pathToConfigFileBackupDirectory" ]; then
-            mkdir "$pathToConfigFileBackupDirectory"
-        fi
-
-
+        # create backup directories if they don't exist
+        if [ ! -d "$pathToArchiveFileBackupDirectory" ]; then mkdir "$pathToArchiveFileBackupDirectory"; fi
+        if [ ! -d "$pathToBatchFileBackupDirectory" ]; then mkdir "$pathToBatchFileBackupDirectory"; fi
+        if [ ! -d "$pathToConfigFileBackupDirectory" ]; then mkdir "$pathToConfigFileBackupDirectory"; fi
 
         # Get the most recently changed archive file backup
         mostRecentArchiveFileBackup="$(find "$pathToArchiveFileBackupDirectory" \
