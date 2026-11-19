@@ -57,13 +57,6 @@ else
     printf -v "logFileBasenameWithTimestamp" ""$logFileBasename" "$timestampTemplate"" -1
 fi
 
-# If downloads directory path is not specified or it has not been created yet, log an error and exit the script
-if [ ! -d "$pathToDownloadsDirectory" ]; then
-    echo "error: downloads directory is missing, create it and re-run script." \
-        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
-    exit 1
-fi
-
 # if any config directories are missing, log error and exit script
 configDirectoriesMissing=false
 for pathToConfigDirectory in "${targetConfigurations[@]/#/$pathToConfigurationsDirectory/}";
