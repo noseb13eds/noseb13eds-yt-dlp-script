@@ -37,25 +37,19 @@ logFileRetentionCount=30                               # retention count for log
 cd "$(dirname ${BASH_SOURCE[0]})"
 absolutePathToScriptDirectory="$(pwd)"
 
-# If any of the log file directories has not been created yet, log an error and exit the script
-for pathToLogFilesDirectory in "${pathsToLogFileDirectories[@]}";
-do
-    if [ ! -d "$pathToLogFilesDirectory" ]; then
-        echo "The directory specified by 'pathsToLogFileDirectories=(...$pathToLogFilesDirectory...)' was not found, please ensure '$pathToLogFilesDirectory' exists and re-run script."
-        exit 1
-    fi
-done
+# create log directories if they don't exist and save their absolute filepaths
+mkdir -p "${pathsToLogFileDirectories[@]}"
+declare -a absolutePathsToLogFileDirectories="("$(readlink -f "${pathsToLogFileDirectories[@]}" \
+    | awk '{print "\""$0"\""}')")"
 
-# Resolve log file filepaths to absolute paths
-declare -a absolutePathsToLogFileDirectories="("$(readlink -f "${pathsToLogFileDirectories[@]}" | awk '{print "\""$0"\""}')")"
-
-# printf the log file template to the 'logFileBasenameWithTimestamp' variable
-# -1 arg tells printf to default to explicit current date, not shell start time
+# printf the log file template and save it (-1 indicates explicit current date, not shell start time)
 if [[ $logFileBasename == *"."* ]]; then
     printf -v "logFileBasenameWithTimestamp" ""${logFileBasename%.*}" "$timestampTemplate"."${logFileBasename##*.}"" -1
 else
     printf -v "logFileBasenameWithTimestamp" ""$logFileBasename" "$timestampTemplate"" -1
 fi
+
+
 
 # if any config directories are missing, log error and exit script
 configDirectoriesMissing=false
