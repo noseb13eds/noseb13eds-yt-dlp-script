@@ -67,22 +67,6 @@ if [ "$configDirectoriesMissing" = true ]; then
     exit 1
 fi
 
-# If any of the config file backup directories have not been created yet, log an error and exit the script
-configBackupDirectoriesMissing=false
-for pathToConfigBackupDirectory in "${pathsToConfigBackupDirectories[@]}";
-do
-    if [ ! -d "$pathToConfigBackupDirectory" ]; then
-        echo "error: config backup directory '$pathToConfigBackupDirectory' is missing." \
-            2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
-        configBackupDirectoriesMissing=true
-    fi
-done
-if [ "$configBackupDirectoriesMissing" = true ]; then
-    echo "error: create config backup directories and re-run script." \
-        2>&1 | ts 2>&1 | tee -a "${absolutePathsToLogFileDirectories[@]/%//$logFileBasenameWithTimestamp}" 2>&1
-    exit 1
-fi
-
 # if batch or config files are missing from config directories, log error and exit script
 batchOrConfigFilesMissing=false
 for pathToConfigDirectory in "${targetConfigurations[@]/#/$pathToConfigurationsDirectory/}";
@@ -172,6 +156,9 @@ do
     # back up any changed configuration files
     for pathToConfigBackupDirectory in "${pathsToConfigBackupDirectories[@]}";
     do
+
+        # create config backup directory if it doesn't exist
+        mkdir -p "$pathToConfigBackupDirectory"
 
         # Resolve backup file directories
         pathToArchiveFileBackupDirectory="$pathToConfigBackupDirectory/$archiveFileBasename"
