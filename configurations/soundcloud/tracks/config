@@ -1,0 +1,11 @@
+# path to main config file
+--config-locations "configurations/soundcloud/config"
+
+# path to file containing IDs of successful downloads
+--download-archive "configurations/soundcloud/archive"
+
+# path to file containing urls to download
+--batch-file "configurations/soundcloud/tracks/batch"
+
+# Template to use for naming downloaded files
+--output "%(playlist_uploader,uploader)s%(playlist_uploader_id,uploader_id& [{}]|)s/tracks/%(artists.0,album_artists.0,uploader&{} - |)s%(track_number&{:02d} - |)s%(title)s%(id& [{}]|)s.%(ext)s"

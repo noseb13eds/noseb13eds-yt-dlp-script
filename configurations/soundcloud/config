@@ -16,11 +16,11 @@
 --sleep-subtitles 60
 
 # Minimum number of seconds to sleep before each download.
-# The actual number of seconds slept will be randomly chosen between this number and --max-sleep-interval
+# actual number of seconds slept will be random between this number and --max-sleep-interval
 --min-sleep-interval 45
 
 # Maximum number of seconds to sleep before each download.
-# The actual number of seconds slept will be randomly chosen between this number and --min-sleep-interval
+# actual number of seconds slept will be random between this number and --min-sleep-interval
 --max-sleep-interval 120
 
 # Write video metadata to a seperate info.json file
@@ -53,10 +53,10 @@
 # Modifies "--max-downloads" to apply for each URL individually instead of the entire queue
 --break-per-input
 
-# Disables falling back to next available format if the highest quality format cannot be downloaded
+# Disables falling back to next available format if the highest quality format can't be downloaded
 --no-check-formats
 
-# Abort the command if an error occurs while downloading (prevents continuing to attempt downloads if there is an issue)
+# Abort the command if an error occurs while downloading
 --abort-on-error
 
 # Limits the download rate to 2mb a second (helps avoid bot detection)
@@ -86,21 +86,21 @@
 # Number of fragments to download concurrently
 --concurrent-fragments 1
 
-# Abort the command if any fragment being downloaded is unavailable
+# Abort the command if any download fragment is unavailable
 --abort-on-unavailable-fragments
 
 # Log full debugging output
 --verbose
 
-# The name of the browser to load cookies from (avoids bot detection/provides better access to certain content)
+# The name of the browser to load cookies from (avoids bot detection/allows access to more content)
 # Will need to be logged into the desired accounts on the target browser for this to do anything
 # See "https://github.com/yt-dlp/yt-dlp/#filesystem-options" for a list of supported browsers
 --cookies-from-browser "firefox"
 
-# The user client to impersonate for requests (helps avoid bot detection for certain websites)
+# The user client to impersonate for requests (avoids bot detection)
 # Running "yt-dlp --list-impersonate-targets" will list all available targets
 # See "https://github.com/yt-dlp/yt-dlp/#network-options" for a list of supported clients
 --impersonate "firefox-135"
 
 # Template to use for naming downloaded files
---output "%(uploader,webpage_url_basename)s [%(uploader_url,webpage_url)s]/%(album&{}|)s/%(artists.0,album_artists.0,uploader&{} - |)s%(track_number&{:02d} - |)s%(title)s%(id& [{}]|)s.%(ext)s"
+--output "%(playlist_uploader,uploader)s%(playlist_uploader_id,uploader_id& [{}]|)s/%(album_type&{}s|)s/%(album&{}|)s%(album_id& [{}]|)s/%(artists.0,album_artists.0,uploader&{} - |)s%(track_number&{:02d} - |)s%(title)s%(id& [{}]|)s.%(ext)s"

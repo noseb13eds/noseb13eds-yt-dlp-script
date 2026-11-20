@@ -1,0 +1,8 @@
+# path to main config file
+--config-locations "configurations/soundcloud/config"
+
+# path to file containing urls to download
+--batch-file "configurations/soundcloud/playlists/batch"
+
+# Ignore archive file (overrides --download-archive in main script)
+--no-download-archive
