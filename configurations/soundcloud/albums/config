@@ -1,8 +1,0 @@
-# path to main config file
---config-locations "configurations/soundcloud/config"
-
-# path to file containing IDs of successful downloads
---download-archive "configurations/soundcloud/archive"
-
-# path to file containing urls to download
---batch-file "configurations/soundcloud/albums/batch"
