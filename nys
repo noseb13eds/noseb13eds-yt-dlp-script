@@ -7,7 +7,7 @@
 releaseChannel=""
 
 # target configurations (yt-dlp runs once for each configuration)
-declare -a configurations=("hawk/tuah" "soundcloud/albums" "soundcloud/tracks" "soundcloud/playlists")
+declare -a configurations=("soundcloud/albums" "soundcloud/tracks" "soundcloud/playlists")
 
 # download subdirectories ([CONFIGURATION]=SUBDIRECTORY)
 declare -A downloadSubdirectories=(
@@ -36,7 +36,7 @@ logFileRetentionCount=30                              # retention count for log 
 # change present working directory to this script's location
 cd "$(dirname ${BASH_SOURCE[0]})"
 
-# create log directories if they don't exist and save their absolute filepaths
+# create log directories if they don't exist
 mkdir -p "${logFileDirectories[@]}"
 
 # printf the log file template and save it (-1 indicates explicit current date, not shell start time)
