@@ -1,4 +1,5 @@
 backups
 configurations/**/archive
+configurations/**/batch
 downloads
 logs
